@@ -1,7 +1,4 @@
 Add this following libaries in your Arduino IDE
-
-<a href="><img src="assets/Install-Adafruit-MPU6050-library-Arduino-IDE?raw=true" width="500px"></a>
-
 1.Add ThingsBoard Ardunio SDK librariy (V0.6) from the library manager or download and include directly the Zip file from this 
 link:https://github.com/thingsboard/thingsboard-arduino-sdk/tree/v0.6.0
 
