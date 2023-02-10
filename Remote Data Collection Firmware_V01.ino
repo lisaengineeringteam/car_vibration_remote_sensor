@@ -1,65 +1,111 @@
-//######LIBRARIES##################
+//Remote Connection stuff
+#include <ESP8266WiFi.h>
 #include "ThingsBoard.h"
-#include <WiFi.h>
-//If you use ESP8266 then activate this library
-//#include <ESP8266WiFi.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-//######credentilas##################
 #include "credentials.h"
-//###############################
-Adafruit_MPU6050 mpu;
-// Initialize ThingsBoard client
+
 WiFiClient espClient;
-// Initialize ThingsBoard instance
 ThingsBoard tb(espClient);
-// the Wifi radio's status
 int status = WL_IDLE_STATUS;
 bool subscribed = false;
 
+//Sensor Stuff
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+Adafruit_MPU6050 mpu;
+
+// FFT stuff
+#include "arduinoFFT.h"
+#define SAMPLING_FREQUENCY 100
+#define NUM_SAMPLES 2048
+
+
+
+// Sampling stuff
+unsigned int sampling_period_us;
+unsigned long newTime;
+
+
 void setup() {
   Serial.begin(115200);
-  // while (!Serial);
-  Serial.println("MPU6050 OLED demo");
-
   WiFi.begin(WIFI_AP, WIFI_PASSWORD);
   InitWiFi();
+  sampling_period_us = round(1000000 * (1.0 / SAMPLING_FREQUENCY));
 
   if (!mpu.begin()) {
-    Serial.println("Sensor init failed");
-    while (1)
-      yield();
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
   }
-  Serial.println("Found a MPU-6050 sensor");
+  Serial.println("MPU6050 Found!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (mpu.getAccelerometerRange()) {
+  case MPU6050_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case MPU6050_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case MPU6050_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case MPU6050_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  Serial.print("Gyro range set to: ");
+  switch (mpu.getGyroRange()) {
+  case MPU6050_RANGE_250_DEG:
+    Serial.println("+- 250 deg/s");
+    break;
+  case MPU6050_RANGE_500_DEG:
+    Serial.println("+- 500 deg/s");
+    break;
+  case MPU6050_RANGE_1000_DEG:
+    Serial.println("+- 1000 deg/s");
+    break;
+  case MPU6050_RANGE_2000_DEG:
+    Serial.println("+- 2000 deg/s");
+    break;
+  }
+
+  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+  Serial.print("Filter bandwidth set to: ");
+  switch (mpu.getFilterBandwidth()) {
+  case MPU6050_BAND_260_HZ:
+    Serial.println("260 Hz");
+    break;
+  case MPU6050_BAND_184_HZ:
+    Serial.println("184 Hz");
+    break;
+  case MPU6050_BAND_94_HZ:
+    Serial.println("94 Hz");
+    break;
+  case MPU6050_BAND_44_HZ:
+    Serial.println("44 Hz");
+    break;
+  case MPU6050_BAND_21_HZ:
+    Serial.println("21 Hz");
+    break;
+  case MPU6050_BAND_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case MPU6050_BAND_5_HZ:
+    Serial.println("5 Hz");
+    break;
+  }
+
+  Serial.println("");
+
+  delay(100);
 }
 
 void loop() {
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-
-  Serial.print("Accelerometer ");
-  Serial.print("X: ");
-  Serial.print(a.acceleration.x, 1);
-  Serial.print(" m/s^2, ");
-  Serial.print("Y: ");
-  Serial.print(a.acceleration.y, 1);
-  Serial.print(" m/s^2, ");
-  Serial.print("Z: ");
-  Serial.print(a.acceleration.z, 1);
-  Serial.println(" m/s^2");
-
-  Serial.print("Gyroscope ");
-  Serial.print("X: ");
-  Serial.print(g.gyro.x, 1);
-  Serial.print(" rps, ");
-  Serial.print("Y: ");
-  Serial.print(g.gyro.y, 1);
-  Serial.print(" rps, ");
-  Serial.print("Z: ");
-  Serial.print(g.gyro.z, 1);
-  Serial.println(" rps");
-
-    if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED) {
     reconnect();
   }
 
@@ -76,15 +122,23 @@ void loop() {
     }
   }
 
-  tb.sendTelemetryInt("X", a.acceleration.x);
-  tb.sendTelemetryInt("Y", a.acceleration.y);
-  tb.sendTelemetryInt("Z", a.acceleration.z);
+  // Collect Samples
+  for (int i = 0; i < NUM_SAMPLES; i++) {
+      sensors_event_t a, g, temp;
+      mpu.getEvent(&a, &g, &temp);
+      tb.sendTelemetryInt("X", a.acceleration.x);
+      tb.sendTelemetryInt("Y", a.acceleration.y);
+      tb.sendTelemetryInt("Z", a.acceleration.z);
+      tb.sendTelemetryInt("g_X", g.gyro.x);
+      tb.sendTelemetryInt("g_Y", g.gyro.y);  
+      tb.sendTelemetryInt("g_Z", g.gyro.z);
+      tb.sendTelemetryInt("temperature", temp.temperature);
+      while ((micros() - newTime) < sampling_period_us) { /* chill */ }
+  }
 
-  tb.sendTelemetryInt("g_X", g.gyro.x);
-  tb.sendTelemetryInt("g_Y", g.gyro.y);  
-  tb.sendTelemetryInt("g_Z", g.gyro.z);
-  tb.sendTelemetryInt("temperature", temp.temperature);
+  delay(1000);
 }
+
 
 void InitWiFi()
 {
