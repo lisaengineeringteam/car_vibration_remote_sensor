@@ -1,5 +1,6 @@
 //Remote Connection stuff
-#include <ESP8266WiFi.h>
+//#include <ESP8266WiFi.h>//For Esp8622
+#include <WiFi.h>
 #include "ThingsBoard.h"
 #include "credentials.h"
 
@@ -14,23 +15,11 @@ bool subscribed = false;
 #include <Wire.h>
 Adafruit_MPU6050 mpu;
 
-// FFT stuff
-#include "arduinoFFT.h"
-#define SAMPLING_FREQUENCY 100
-#define NUM_SAMPLES 2048
-
-
-
-// Sampling stuff
-unsigned int sampling_period_us;
-unsigned long newTime;
-
-
 void setup() {
   Serial.begin(115200);
   WiFi.begin(WIFI_AP, WIFI_PASSWORD);
   InitWiFi();
-  sampling_period_us = round(1000000 * (1.0 / SAMPLING_FREQUENCY));
+  //sampling_period_us = round(1000000 * (1.0 / SAMPLING_FREQUENCY));
 
   if (!mpu.begin()) {
     Serial.println("Failed to find MPU6050 chip");
@@ -122,21 +111,18 @@ void loop() {
     }
   }
 
-  // Collect Samples
-  for (int i = 0; i < NUM_SAMPLES; i++) {
-      sensors_event_t a, g, temp;
-      mpu.getEvent(&a, &g, &temp);
-      tb.sendTelemetryInt("X", a.acceleration.x);
-      tb.sendTelemetryInt("Y", a.acceleration.y);
-      tb.sendTelemetryInt("Z", a.acceleration.z);
-      tb.sendTelemetryInt("g_X", g.gyro.x);
-      tb.sendTelemetryInt("g_Y", g.gyro.y);  
-      tb.sendTelemetryInt("g_Z", g.gyro.z);
-      tb.sendTelemetryInt("temperature", temp.temperature);
-      while ((micros() - newTime) < sampling_period_us) { /* chill */ }
-  }
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+    tb.sendTelemetryInt("X", a.acceleration.x);
+    tb.sendTelemetryInt("Y", a.acceleration.y);
+    tb.sendTelemetryInt("Z", a.acceleration.z);
+    tb.sendTelemetryInt("g_X", g.gyro.x);
+    tb.sendTelemetryInt("g_Y", g.gyro.y);  
+    tb.sendTelemetryInt("g_Z", g.gyro.z);
+    tb.sendTelemetryInt("temperature", temp.temperature);  
 
-  delay(1000);
+
+  delay(100);
 }
 
 
